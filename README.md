@@ -198,7 +198,7 @@ bank-transaction-pipeline/
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd bank-transaction-pipeline
+cd transaction-pipeline
 ```
 
 2. Install dependencies:
