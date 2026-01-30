@@ -1,0 +1,57 @@
+# Bank Transaction Pipeline Configuration
+
+pipeline:
+  name: bank_transaction_pipeline
+  environment: local
+
+paths:
+  raw_transactions: data/raw/bad_transactions.csv
+  ledger_output: data/processed/ledger_transactions.parquet
+  daily_balance_output: data/processed/daily_account_balance.parquet
+
+data_schema:
+  required_columns:
+    - txn_id
+    - account_id
+    - txn_date
+    - ingestion_date
+    - amount
+    - currency
+    - txn_type
+    - status
+
+business_rules:
+  success_statuses:
+    - COMPLETED
+    - SETTLED
+    - OK
+  refund_types:
+    - REFUND
+  valid_txn_types:
+    - CARD
+    - CASH
+    - REFUND
+    - DEBIT
+    - CREDIT
+    - TRANSFER
+    - WITHDRAWAL
+    - FEE
+    - DEPOSIT
+    - PAYMENT
+  late_arrival_days_threshold: 0
+
+reconciliation:
+  tolerance_amount: 0.00
+  fail_on_mismatch: true
+
+processing:
+  chunksize: null  # Set to a number (e.g., 10000) for large files, null for full load
+
+aggregation:
+  daily_balance:
+    group_by:
+      - account_id
+      - txn_date
+    metrics:
+      total_amount: sum
+      txn_count: count

@@ -1,0 +1,35 @@
+{
+  "row_counts": {
+    "raw_total": 10000,
+    "transformed_total": 10000,
+    "ledger_total": 7986,
+    "skipped_total": 2014
+  },
+  "rejection_reasons": {
+    "by_status": {
+      "SUCCESS": 7986,
+      "FAILED": 2014
+    },
+    "total_failed": 2014,
+    "failure_rate": 0.2014
+  },
+  "data_quality_flags": {
+    "txn_id_missing": "0",
+    "account_id_missing": "0",
+    "txn_date_missing": "0",
+    "amount_clean_missing": "0",
+    "duplicate_txn_ids": "0",
+    "late_arrivals": "2983",
+    "amount_statistics": {
+      "count": 10000.0,
+      "mean": -9.841273000000001,
+      "std": 2002.5106101789565,
+      "min": -9991.51,
+      "25%": -84.13,
+      "50%": -4.425,
+      "75%": 83.0575,
+      "max": 9956.8
+    },
+    "amount_outliers": "470"
+  }
+}
