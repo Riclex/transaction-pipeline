@@ -5,7 +5,7 @@ pipeline:
   environment: local
 
 paths:
-  raw_transactions: data/raw/bad_transactions.csv
+  raw_transactions: data/raw/transactions_raw.csv
   ledger_output: data/processed/ledger_transactions.parquet
   daily_balance_output: data/processed/daily_account_balance.parquet
 
