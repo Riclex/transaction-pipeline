@@ -1,0 +1,137 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e1f5fe', 'primaryTextColor': '#01579b', 'primaryBorderColor': '#0288d1', 'lineColor': '#0288d1', 'secondaryColor': '#fff3e0', 'tertiaryColor': '#e8f5e9', 'fontFamily': 'Inter, sans-serif'}}}%%
+
+flowchart TB
+    %% Styles
+    classDef dataSource fill:#fff8e1,stroke:#f57f17,stroke-width:2px
+    classDef process fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef validate fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef output fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef config fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef checkpoint fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+
+    subgraph Sources["📁 Data Sources"]
+        RAW_CSV["transactions_raw.csv\nRaw transaction feed"]
+        BAD_CSV["bad_transactions.csv\nTest data with errors"]
+    end
+
+    subgraph Config["⚙️ Configuration Layer"]
+        YAML["pipeline_config.yaml"]
+        SCHEMA["config_schema.py\nPydantic validation"]
+        CFG_LOADER["config.py\nConfig loader"]
+    end
+
+    subgraph ExtractLayer["🔍 Extract Layer (extract.py)"]
+        EXTRACT["extract_transactions()"]
+        SCHEMA_VAL["Schema Validation"]
+        CHUNK["Chunked Processing\n(Optional)"]
+    end
+
+    subgraph TransformLayer["🔧 Transform Layer (transform.py)"]
+        TRANSFORM["transform_transactions()"]
+        PARSE["Parse Dates\n(txn_date, ingestion_date)"]
+        NORMALIZE["Normalize Status\n→ SUCCESS/FAILED"]
+        AMOUNT["Normalize Amount\n(Refunds = negative)"]
+        LATE["Detect Late Arrivals\n(txn_date < ingestion_date)"]
+    end
+
+    subgraph QualityLayer["📊 Quality Layer (quality.py)"]
+        QUALITY["calculate_data_quality_metrics()"]
+        METRICS_JSON["data_quality_metrics.json"]
+        REJECT_CSV["rejection_report.csv"]
+    end
+
+    subgraph ReconcileLayer["⚖️ Reconcile Layer (reconcile.py)"]
+        RECONCILE["reconcile_raw_vs_ledger()"]
+        TOLERANCE["Tolerance Check\n(default: 0.00)"]
+    end
+
+    subgraph LoadLayer["💾 Load Layer (load.py)"]
+        LOAD["load_ledger()"]
+        PARQUET["ledger_transactions.parquet"]
+        VALIDATE_LEDGER["Validate txn_id\n(Unique, No nulls)"]
+    end
+
+    subgraph AggregateLayer["📈 Aggregation Layer (pipeline.py)"]
+        AGG["Daily Balance\nAggregation"]
+        DAILY_PARQUET["daily_account_balance.parquet"]
+    end
+
+    subgraph CheckpointLayer["🔄 Fault Tolerance (checkpoint.py)"]
+        CHECKPOINT["PipelineCheckpoint"]
+        CHECKPOINT_DIR["data/checkpoints/"]
+        RESUME["Resume Capability"]
+    end
+
+    subgraph Orchestrator["🎛️ Orchestrator (pipeline.py)"]
+        PIPELINE["run_pipeline()"]
+    end
+
+    subgraph Tests["🧪 Testing"]
+        TEST_EXTRACT["test_extract.py"]
+        TEST_PIPELINE["test_pipeline_logic.py"]
+    end
+
+    %% Data Flow
+    RAW_CSV --> PIPELINE
+    YAML --> CFG_LOADER --> PIPELINE
+    SCHEMA -.-> CFG_LOADER
+
+    PIPELINE --> CHECKPOINT
+    CHECKPOINT --> CHECKPOINT_DIR
+    CHECKPOINT -.-> RESUME
+
+    PIPELINE --> EXTRACT
+    EXTRACT --> SCHEMA_VAL
+    EXTRACT --> CHUNK
+    SCHEMA_VAL --> TRANSFORM
+
+    TRANSFORM --> PARSE
+    PARSE --> NORMALIZE
+    NORMALIZE --> AMOUNT
+    AMOUNT --> LATE
+
+    LATE --> QUALITY
+    QUALITY --> METRICS_JSON
+    QUALITY --> REJECT_CSV
+
+    LATE --> |transformed_df, ledger_df| RECONCILE
+    RECONCILE --> TOLERANCE
+
+    TOLERANCE --> |ledger_df| LOAD
+    LOAD --> VALIDATE_LEDGER
+    VALIDATE_LEDGER --> PARQUET
+
+    LOAD --> AGG
+    AGG --> DAILY_PARQUET
+
+    PIPELINE -.->|saves checkpoint| CHECKPOINT
+    EXTRACT -.->|checkpoint: extract| CHECKPOINT
+    TRANSFORM -.->|checkpoint: transform| CHECKPOINT
+    RECONCILE -.->|checkpoint: reconcile| CHECKPOINT
+    LOAD -.->|checkpoint: load| CHECKPOINT
+    DAILY_PARQUET -.->|clear checkpoint| CHECKPOINT
+
+    %% Testing connections
+    TEST_EXTRACT -.->|tests| EXTRACT
+    TEST_PIPELINE -.->|tests| PIPELINE
+    BAD_CSV -.->|test data| TEST_EXTRACT
+
+    %% Styling
+    class RAW_CSV,BAD_CSV dataSource
+    class EXTRACT,TRANSFORM,RECONCILE,LOAD,AGG,PARSE,NORMALIZE,AMOUNT,LATE,PIPELINE process
+    class SCHEMA_VAL,VALIDATE_LEDGER,TOLERANCE,QUALITY validate
+    class PARQUET,DAILY_PARQUET,METRICS_JSON,REJECT_CSV output
+    class YAML,SCHEMA,CFG_LOADER config
+    class CHECKPOINT,CHECKPOINT_DIR,RESUME checkpoint
+
+    %% Click events
+    click EXTRACT "./src/extract.py" "Open extract.py"
+    click TRANSFORM "./src/transform.py" "Open transform.py"
+    click LOAD "./src/load.py" "Open load.py"
+    click RECONCILE "./src/reconcile.py" "Open reconcile.py"
+    click QUALITY "./src/quality.py" "Open quality.py"
+    click CHECKPOINT "./src/checkpoint.py" "Open checkpoint.py"
+    click PIPELINE "./src/pipeline.py" "Open pipeline.py"
+    click CFG_LOADER "./src/config.py" "Open config.py"
+    click SCHEMA "./src/config_schema.py" "Open config_schema.py"
+    click YAML "./config/pipeline_config.yaml" "Open config file"
