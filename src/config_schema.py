@@ -208,6 +208,70 @@ class AmlDetectionConfig(BaseModel):
     )
 
 
+# -----------------------------------------------------------------------------
+# Data Trust Layer Configuration
+# -----------------------------------------------------------------------------
+
+class AlertChannelConfig(BaseModel):
+    """Configuration for alert channels."""
+    console: bool = Field(default=True)
+    webhook: bool = Field(default=False)
+    webhook_url: Optional[str] = Field(default=None)
+    email: bool = Field(default=False)
+    email_smtp_host: Optional[str] = Field(default=None)
+    email_smtp_port: int = Field(default=587)
+    email_username: Optional[str] = Field(default=None)
+    email_password: Optional[str] = Field(default=None)
+    email_from: Optional[str] = Field(default=None)
+    email_to: List[str] = Field(default_factory=list)
+    file: bool = Field(default=False)
+    file_path: Optional[str] = Field(default=None)
+
+
+class TrustLayerConfig(BaseModel):
+    """Data trust layer configuration for lineage, SLA, drift detection, and alerting."""
+    enabled: bool = Field(
+        default=True,
+        description="Enable the data trust layer"
+    )
+    lineage_dir: str = Field(
+        default="data/lineage",
+        description="Directory for lineage data storage"
+    )
+    sla_check_freshness: bool = Field(
+        default=True,
+        description="Enable data freshness SLA checking"
+    )
+    sla_max_data_age_hours: float = Field(
+        default=24.0,
+        ge=0,
+        description="Maximum allowed data age in hours"
+    )
+    sla_max_processing_time_minutes: float = Field(
+        default=30.0,
+        ge=0,
+        description="Maximum allowed processing time in minutes"
+    )
+    drift_detection_dir: str = Field(
+        default="data/schema_baselines",
+        description="Directory for schema drift baselines"
+    )
+    drift_track_additions: bool = Field(default=True)
+    drift_track_removals: bool = Field(default=True)
+    drift_track_type_changes: bool = Field(default=True)
+    drift_critical_columns: List[str] = Field(default_factory=list)
+    alerting: AlertChannelConfig = Field(default_factory=AlertChannelConfig)
+    alert_throttle_minutes: int = Field(
+        default=5,
+        ge=0,
+        description="Minutes to throttle duplicate alerts"
+    )
+    contracts_dir: str = Field(
+        default="data/contracts",
+        description="Directory for data contract storage"
+    )
+
+
 class PipelineConfig(BaseModel):
     """Main pipeline configuration schema."""
     pipeline: dict = Field(
@@ -221,6 +285,7 @@ class PipelineConfig(BaseModel):
     processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
     aggregation: AggregationConfig = Field(default_factory=AggregationConfig)
     aml_detection: AmlDetectionConfig = Field(default_factory=AmlDetectionConfig)
+    trust_layer: TrustLayerConfig = Field(default_factory=TrustLayerConfig)
 
     @validator('paths')
     def validate_paths(cls, v):
