@@ -55,3 +55,43 @@ aggregation:
     metrics:
       total_amount: sum
       txn_count: count
+
+# AML (Anti-Money Laundering) Detection Configuration
+aml_detection:
+  enabled: true
+  input_path: data/processed/ledger_transactions.parquet
+  output_paths:
+    scored_transactions: data/processed/aml_scored_transactions.parquet
+    alerts: data/processed/aml_alerts.parquet
+
+  # Velocity rules - flag accounts with unusual transaction patterns
+  velocity_rules:
+    daily_txn_count_threshold: 10        # Flag accounts with >10 txns/day
+    daily_amount_threshold: 50000.00     # Flag accounts with >$50k/day
+    seven_day_amount_threshold: 150000.00  # Flag accounts with >$150k/7days
+
+  # Structuring detection - identify potential threshold avoidance
+  structuring_rules:
+    ctr_threshold: 10000.00              # Currency Transaction Report threshold
+    lower_bound_factor: 0.90             # Flag amounts >90% of threshold
+    upper_bound_factor: 0.99             # Flag amounts <99% of threshold
+    min_structuring_txns: 2              # Minimum txns to flag pattern
+
+  # Round number detection - flag suspiciously round amounts
+  round_number_rules:
+    enabled: true
+    large_round_amounts: [10000, 5000, 1000, 500]
+
+  # Risk scoring weights - composite score is sum of triggered rule weights
+  risk_weights:
+    velocity_daily_count: 25
+    velocity_daily_amount: 30
+    velocity_7d_amount: 35
+    structuring: 50
+    round_number: 15
+
+  # Alert severity thresholds
+  alert_thresholds:
+    low: 25
+    medium: 50
+    high: 75

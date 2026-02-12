@@ -87,6 +87,127 @@ class AggregationConfig(BaseModel):
     )
 
 
+class AmlOutputPathsConfig(BaseModel):
+    """Output file paths for AML detection."""
+    scored_transactions: str = Field(
+        default="data/processed/aml_scored_transactions.parquet",
+        description="Path for scored transactions output"
+    )
+    alerts: str = Field(
+        default="data/processed/aml_alerts.parquet",
+        description="Path for alerts output"
+    )
+
+
+class VelocityRulesConfig(BaseModel):
+    """Configuration for velocity-based AML rules."""
+    daily_txn_count_threshold: int = Field(
+        default=10,
+        ge=1,
+        description="Maximum allowed daily transaction count per account"
+    )
+    daily_amount_threshold: float = Field(
+        default=50000.0,
+        ge=0,
+        description="Daily amount threshold for flagging"
+    )
+    seven_day_amount_threshold: float = Field(
+        default=150000.0,
+        ge=0,
+        description="7-day rolling amount threshold"
+    )
+
+
+class StructuringRulesConfig(BaseModel):
+    """Configuration for structuring (avoidance) detection."""
+    ctr_threshold: float = Field(
+        default=10000.0,
+        ge=0,
+        description="Currency Transaction Report threshold"
+    )
+    lower_bound_factor: float = Field(
+        default=0.90,
+        ge=0,
+        le=1,
+        description="Lower bound as fraction of CTR threshold"
+    )
+    upper_bound_factor: float = Field(
+        default=0.99,
+        ge=0,
+        le=1,
+        description="Upper bound as fraction of CTR threshold"
+    )
+    min_structuring_txns: int = Field(
+        default=2,
+        ge=1,
+        description="Minimum structuring transactions to flag"
+    )
+
+
+class RoundNumberRulesConfig(BaseModel):
+    """Configuration for round number pattern detection."""
+    enabled: bool = Field(default=True)
+    large_round_amounts: List[float] = Field(
+        default=[10000, 5000, 1000, 500],
+        description="Round amounts that trigger flags when matched"
+    )
+
+
+class RiskWeightsConfig(BaseModel):
+    """Risk score weights for each rule type."""
+    velocity_daily_count: int = Field(default=25, ge=0, le=100)
+    velocity_daily_amount: int = Field(default=30, ge=0, le=100)
+    velocity_7d_amount: int = Field(default=35, ge=0, le=100)
+    structuring: int = Field(default=50, ge=0, le=100)
+    round_number: int = Field(default=15, ge=0, le=100)
+
+
+class AlertThresholdsConfig(BaseModel):
+    """Severity thresholds for alert generation."""
+    low: int = Field(default=25, ge=0, le=100)
+    medium: int = Field(default=50, ge=0, le=100)
+    high: int = Field(default=75, ge=0, le=100)
+
+    @validator('medium')
+    def medium_above_low(cls, v, values):
+        if 'low' in values and v < values['low']:
+            raise ValueError('medium threshold must be >= low threshold')
+        return v
+
+    @validator('high')
+    def high_above_medium(cls, v, values):
+        if 'medium' in values and v < values['medium']:
+            raise ValueError('high threshold must be >= medium threshold')
+        return v
+
+
+class AmlDetectionConfig(BaseModel):
+    """Main AML detection configuration."""
+    enabled: bool = Field(default=True)
+    input_path: str = Field(
+        default="data/processed/ledger_transactions.parquet",
+        description="Path to ledger input file"
+    )
+    output_paths: AmlOutputPathsConfig = Field(
+        default_factory=AmlOutputPathsConfig
+    )
+    velocity_rules: VelocityRulesConfig = Field(
+        default_factory=VelocityRulesConfig
+    )
+    structuring_rules: StructuringRulesConfig = Field(
+        default_factory=StructuringRulesConfig
+    )
+    round_number_rules: RoundNumberRulesConfig = Field(
+        default_factory=RoundNumberRulesConfig
+    )
+    risk_weights: RiskWeightsConfig = Field(
+        default_factory=RiskWeightsConfig
+    )
+    alert_thresholds: AlertThresholdsConfig = Field(
+        default_factory=AlertThresholdsConfig
+    )
+
+
 class PipelineConfig(BaseModel):
     """Main pipeline configuration schema."""
     pipeline: dict = Field(
@@ -99,6 +220,7 @@ class PipelineConfig(BaseModel):
     reconciliation: ReconciliationConfig = Field(default_factory=ReconciliationConfig)
     processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
     aggregation: AggregationConfig = Field(default_factory=AggregationConfig)
+    aml_detection: AmlDetectionConfig = Field(default_factory=AmlDetectionConfig)
 
     @validator('paths')
     def validate_paths(cls, v):

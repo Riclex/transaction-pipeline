@@ -1,6 +1,6 @@
 # Bank Transaction Data Pipeline
 
-A production-grade ETL pipeline for processing financial transaction data with enterprise features including configuration management, data quality monitoring, fault tolerance, and comprehensive validation.
+A production-grade ETL pipeline for processing financial transaction data with enterprise features including configuration management, data quality monitoring, fault tolerance, comprehensive validation, and AML (Anti-Money Laundering) detection.
 
 ## Business Context
 
@@ -97,10 +97,49 @@ Idempotent persistence layer:
 ### Checkpoint/Resume (`src/checkpoint.py`)
 
 **Fault tolerance features:**
-* Saves pipeline state at each major step
-* Enables resume from last successful checkpoint
+* Saves pipeline state at each major step (extract, transform, reconcile, load)
+* Full resume capability with step-by-step skipping
 * Prevents reprocessing on failure
 * Automatic cleanup on successful completion
+* `ResumeState` dataclass tracks completed steps and data
+
+**Usage:**
+```python
+# Resume from last checkpoint after failure
+python -c "from src.pipeline import run_pipeline; run_pipeline(resume=True)"
+```
+
+### AML Detection (`src/aml/`)
+
+AML (Anti-Money Laundering) detection module that analyzes the transaction ledger for suspicious patterns:
+
+**Detection Capabilities:**
+* **Velocity Checks**: Flag accounts exceeding daily/7-day transaction count or amount thresholds
+* **Structuring Detection**: Identify transactions near CTR (Currency Transaction Report) thresholds
+* **Round Number Analysis**: Detect suspicious round-number amounts (e.g., €9,999)
+* **Risk Scoring**: Weighted composite risk score (0-100) based on triggered rules
+* **Alert Management**: Deduplicated alerts with severity levels (low/medium/high)
+
+**Configuration:**
+```yaml
+aml_detection:
+  enabled: true
+  velocity_rules:
+    daily_txn_count_threshold: 10
+    daily_amount_threshold: 50000.0
+  risk_weights:
+    velocity_daily_count: 25
+    structuring: 50
+    round_number: 15
+  alert_thresholds:
+    low: 25
+    medium: 50
+    high: 75
+```
+
+**Outputs:**
+* `data/processed/aml_scored_transactions.parquet`: All transactions with risk scores
+* `data/processed/aml_alerts.parquet`: Generated alerts for investigation
 
 ## Configuration Management
 
@@ -149,7 +188,11 @@ Transactions may arrive days after they occur. The pipeline:
 * Correct handling of backdated transactions
 
 ### AML (Anti-Money Laundering)
-* Transaction-level traceability
+* **Transaction-level traceability** with `txn_id` uniqueness enforcement
+* **Velocity monitoring** for unusual transaction frequency
+* **Structuring detection** for threshold avoidance behavior
+* **Risk scoring** with weighted rule engine (0-100 scale)
+* **Alert generation** with severity levels and deduplication
 * Reliable transaction counts and volumes
 * Reproducible investigation datasets
 
@@ -169,9 +212,15 @@ bank-transaction-pipeline/
 │   │   ├── transactions_raw.csv      # Input data
 │   │   └── bad_transactions.csv      # Test data with validation errors
 │   └── processed/                    # Output directory
+│       ├── ledger_transactions.parquet
+│       ├── daily_account_balance.parquet
+│       ├── aml_scored_transactions.parquet
+│       ├── aml_alerts.parquet
+│       ├── data_quality_metrics.json
+│       └── rejection_report.csv
 ├── src/
 │   ├── __init__.py
-│   ├── pipeline.py                   # Main orchestrator
+│   ├── pipeline.py                   # Main orchestrator (with checkpoint resume)
 │   ├── extract.py                    # Data extraction & validation
 │   ├── transform.py                  # Business logic & standardization
 │   ├── quality.py                    # Data quality monitoring
@@ -180,11 +229,25 @@ bank-transaction-pipeline/
 │   ├── checkpoint.py                 # Fault tolerance
 │   ├── config.py                     # Configuration loading
 │   ├── config_schema.py              # Pydantic validation models
-│   └── sql/
-│       └── daily_account_balance.sql # Aggregation queries
-├── tests/                            # Unit tests
+│   ├── aml_detector.py               # Standalone AML script
+│   └── aml/                          # AML detection module
+│       ├── __init__.py               # Main AML entry point
+│       ├── loader.py                 # Ledger reader
+│       ├── features.py               # Feature engineering
+│       ├── rules.py                  # Rule engine
+│       └── alerts.py                 # Alert management
+├── tests/                            # Test suite (71 tests)
+│   ├── test_extract.py               # Extract module tests
+│   ├── test_pipeline_logic.py        # Integration tests
+│   ├── test_aml_rules.py             # AML rule tests
+│   ├── test_aml_features.py          # AML feature tests
+│   ├── test_aml_alerts.py            # AML alert tests
+│   └── test_aml_integration.py       # AML E2E tests
+├── sql/
+│   └── daily_account_balance.sql     # Aggregation queries
 ├── requirements.txt                  # Python dependencies
-└── README.md                         # This file
+├── README.md                         # This file
+└── CLAUDE.md                         # Project guidance for Claude Code
 ```
 
 ## Setup & Installation
@@ -238,6 +301,8 @@ The pipeline generates:
 * **`data/processed/daily_account_balance.parquet`**: Daily account aggregations
 * **`data/processed/data_quality_metrics.json`**: Quality metrics for monitoring
 * **`data/processed/rejection_report.csv`**: Details of rejected transactions
+* **`data/processed/aml_scored_transactions.parquet`**: Transactions with AML risk scores
+* **`data/processed/aml_alerts.parquet`**: Generated AML alerts for investigation
 * **`data/checkpoints/`**: Pipeline state for resume capability
 
 ## Data Quality Monitoring
@@ -268,11 +333,32 @@ All errors are logged with structured messages and appropriate exit codes.
 
 ## Testing
 
-Run the test suite:
+Comprehensive test suite with 71 tests covering unit, integration, and E2E scenarios:
+
 ```bash
 pip install pytest
 pytest tests/ -v
 ```
+
+### Test Coverage
+
+| Test File | Tests | Coverage Area |
+|-----------|-------|---------------|
+| `test_extract.py` | 5 | Schema validation, duplicates, missing columns, empty files |
+| `test_pipeline_logic.py` | 33 | Full E2E pipeline, transformation logic, reconciliation, load validation |
+| `test_aml_rules.py` | 9 | AML rule engine, risk scoring, severity mapping |
+| `test_aml_features.py` | 6 | Feature engineering, velocity, structuring, round numbers |
+| `test_aml_alerts.py` | 7 | Alert generation, deduplication, save/load |
+| `test_aml_integration.py` | 4 | AML E2E pipeline, metrics computation |
+| **Total** | **71** | **~70% code coverage** |
+
+### Test Patterns
+
+* **Parametrized tests** for status normalization (14 cases covering edge cases)
+* **Empty DataFrame handling** tested for all major components
+* **Error condition testing** with `pytest.raises()`
+* **File I/O testing** using `tmp_path` fixture
+* **Type hints** on all test functions with proper annotations
 
 ## Production Deployment
 
@@ -284,14 +370,26 @@ This project is production-ready and can scale to enterprise environments:
 * **Data lakehouse**: Delta Lake/Iceberg for advanced analytics
 * **Monitoring**: Integrate quality metrics with observability platforms
 
+## Changelog
+
+### Recent Improvements
+
+* **Checkpoint/Resume Implementation**: Complete step-by-step resume logic with `ResumeState` dataclass
+* **Type Hints**: Full type annotations on all test functions and variables
+* **AML Detection Module**: Professional-grade AML detection with velocity checks, structuring detection, and risk scoring
+* **Test Coverage**: 71 comprehensive tests with parametrized edge cases
+* **Bug Fixes**: Fixed numpy boolean comparisons, reconciliation diff calculations, CSV parsing
+
 ## Key Takeaways
 
 This project demonstrates:
 
-* **Financial data pipeline design** with regulatory compliance
+* **Financial data pipeline design** with regulatory compliance (Basel, AML, PSD2)
 * **Configuration-driven architecture** for maintainability
 * **Comprehensive validation** preventing data quality issues
-* **Fault-tolerant processing** with checkpoint/resume
+* **Fault-tolerant processing** with complete checkpoint/resume capability
+* **AML detection** with velocity checks, structuring detection, and risk scoring
 * **Data quality monitoring** for production observability
 * **Late-arriving data handling** for accurate historical reporting
 * **Reconciliation-first approach** ensuring data integrity
+* **Production-ready testing** with 71 tests covering edge cases
