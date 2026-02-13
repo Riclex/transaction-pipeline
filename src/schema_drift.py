@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Any, Tuple
 
@@ -54,7 +54,7 @@ class DriftEvent:
     column_name: str
     expected: Any
     actual: Any
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     description: str = ""
 
 
@@ -99,7 +99,7 @@ class SchemaDriftDetector:
         columns = {col: str(dtype) for col, dtype in df.dtypes.items()}
 
         version = SchemaVersion(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             source=source_name,
             columns=columns,
             column_count=len(columns),
@@ -276,11 +276,11 @@ class SchemaDriftDetector:
         Returns:
             Path to generated report
         """
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         report_path = self.baseline_dir / f"drift_report_{timestamp}.json"
 
         report = {
-            "report_timestamp": datetime.utcnow().isoformat(),
+            "report_timestamp": datetime.now(timezone.utc).isoformat(),
             "total_events": len(self.drift_events),
             "critical_count": sum(1 for e in self.drift_events if e.severity == "critical"),
             "warning_count": sum(1 for e in self.drift_events if e.severity == "warning"),
@@ -299,7 +299,7 @@ class SchemaDriftDetector:
         warnings = [e for e in self.drift_events if e.severity == "warning"]
 
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "total_events": len(self.drift_events),
             "status": "healthy" if not critical else "degraded",
             "critical_count": len(critical),

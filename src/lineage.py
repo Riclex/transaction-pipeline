@@ -10,7 +10,7 @@ import json
 import logging
 import hashlib
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from uuid import uuid4
@@ -28,7 +28,7 @@ class DataLineageNode:
     node_type: str  # 'source', 'transformation', 'sink'
     name: str
     operation: str
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     input_schema: Optional[Dict[str, str]] = None
     output_schema: Optional[Dict[str, str]] = None
     row_count: Optional[int] = None
@@ -53,17 +53,17 @@ class LineageTracker:
         self.run_id = str(uuid4())[:8]
 
     def _compute_file_hash(self, file_path: Path) -> Optional[str]:
-        """Compute MD5 hash of file for provenance tracking.
+        """Compute SHA-256 hash of file for provenance tracking.
 
         Returns None if file does not exist.
         """
         if not file_path.exists():
             return None
-        hash_md5 = hashlib.md5()
+        hash_sha256 = hashlib.sha256()
         with open(file_path, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
-                hash_md5.update(chunk)
-        return hash_md5.hexdigest()[:16]
+                hash_sha256.update(chunk)
+        return hash_sha256.hexdigest()[:32]
 
     def _get_schema(self, df: pd.DataFrame) -> Dict[str, str]:
         """Extract schema from DataFrame."""
@@ -218,14 +218,14 @@ class LineageTracker:
             Path to exported file
         """
         if filename is None:
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             filename = f"lineage_{self.run_id}_{timestamp}.json"
 
         output_path = self.output_dir / filename
 
         lineage_data = {
             "run_id": self.run_id,
-            "export_timestamp": datetime.utcnow().isoformat(),
+            "export_timestamp": datetime.now(timezone.utc).isoformat(),
             "total_nodes": len(self.nodes),
             "nodes": [asdict(node) for node in self.nodes.values()],
         }

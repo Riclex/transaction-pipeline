@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Callable
@@ -74,8 +74,8 @@ class DataContract(BaseModel):
     row_count_max: Optional[int] = None
     freshness_hours: Optional[float] = None
     custom_validators: List[str] = Field(default_factory=list)
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-    updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 @dataclass
@@ -269,7 +269,7 @@ class DataContractEnforcer:
         result = ContractValidationResult(
             contract_name=contract.name,
             version=contract.version,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             status=status,
             violations=violations,
             row_count=len(df),
@@ -376,7 +376,7 @@ class DataContractEnforcer:
             Path to generated report
         """
         if output_path is None:
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             output_path = self.contracts_dir / f"validation_report_{timestamp}.json"
 
         report = {

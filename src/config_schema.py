@@ -2,13 +2,17 @@
 
 This module provides validation for the pipeline configuration YAML file
 to ensure all required fields are present and have valid values.
+
+Supports environment variable substitution for sensitive values using ${VAR_NAME} syntax.
 """
 
 from __future__ import annotations
 
 import logging
+import os
+import re
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Any
 from pydantic import BaseModel, Field, ValidationError, validator
 
 # Logging
@@ -226,6 +230,30 @@ class AlertChannelConfig(BaseModel):
     email_to: List[str] = Field(default_factory=list)
     file: bool = Field(default=False)
     file_path: Optional[str] = Field(default=None)
+
+    @validator('webhook_url', 'email_password', 'email_username', pre=True, always=True)
+    def expand_env_vars(cls, v: Optional[str]) -> Optional[str]:
+        """Expand environment variables in sensitive string fields.
+
+        Supports ${VAR_NAME} syntax for environment variable substitution.
+        Example: ${EMAIL_PASSWORD} will be replaced with the value of
+        the EMAIL_PASSWORD environment variable.
+        """
+        if v is None or not isinstance(v, str):
+            return v
+
+        # Match ${VAR_NAME} pattern
+        env_pattern = re.compile(r'\$\{([^}]+)\}')
+
+        def replace_var(match: re.Match) -> str:
+            var_name = match.group(1)
+            env_value = os.environ.get(var_name)
+            if env_value is None:
+                LOGGER.warning("Environment variable %s not found, keeping placeholder", var_name)
+                return match.group(0)  # Keep original if not found
+            return env_value
+
+        return env_pattern.sub(replace_var, v)
 
 
 class TrustLayerConfig(BaseModel):

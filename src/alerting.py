@@ -13,7 +13,7 @@ import json
 import logging
 import smtplib
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from enum import Enum
 from pathlib import Path
@@ -100,7 +100,7 @@ class AlertManager:
 
     def _generate_alert_id(self, category: str, title: str) -> str:
         """Generate unique alert ID."""
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
         return f"{category}_{title.replace(' ', '_')}_{timestamp}"
 
     def _is_throttled(self, alert_key: str) -> bool:
@@ -109,7 +109,7 @@ class AlertManager:
             return False
 
         last_sent = self.throttle_cache[alert_key]
-        elapsed = (datetime.utcnow() - last_sent).total_seconds() / 60
+        elapsed = (datetime.now(timezone.utc) - last_sent).total_seconds() / 60
         return elapsed < self.config.throttle_minutes
 
     def send_alert(
@@ -150,7 +150,7 @@ class AlertManager:
 
         alert = Alert(
             alert_id=self._generate_alert_id(category, title),
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             severity=severity,
             category=category,
             title=title,
@@ -168,7 +168,7 @@ class AlertManager:
                     LOGGER.error("Failed to send alert via %s: %s", channel, e)
 
         # Update cache and history
-        self.throttle_cache[alert_key] = datetime.utcnow()
+        self.throttle_cache[alert_key] = datetime.now(timezone.utc)
         self.alert_history.append(alert)
 
         LOGGER.info("Alert sent [%s]: %s", severity.value, title)
@@ -210,7 +210,7 @@ class AlertManager:
             method="POST",
         )
 
-        with request.urlopen(req) as response:
+        with request.urlopen(req, timeout=10) as response:
             if response.status >= 400:
                 raise Exception(f"Webhook returned {response.status}")
 
@@ -266,7 +266,7 @@ class AlertManager:
             if alert.alert_id == alert_id and not alert.acknowledged:
                 alert.acknowledged = True
                 alert.acknowledged_by = acknowledged_by
-                alert.acknowledged_at = datetime.utcnow().isoformat()
+                alert.acknowledged_at = datetime.now(timezone.utc).isoformat()
                 LOGGER.info("Alert %s acknowledged by %s", alert_id, acknowledged_by)
                 return True
         return False
@@ -292,7 +292,7 @@ class AlertManager:
             filepath: Output file path
         """
         data = {
-            "export_timestamp": datetime.utcnow().isoformat(),
+            "export_timestamp": datetime.now(timezone.utc).isoformat(),
             "total_alerts": len(self.alert_history),
             "active_alerts": len(self.get_active_alerts()),
             "alerts": [asdict(a) for a in self.alert_history],
