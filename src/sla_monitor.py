@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -88,7 +88,7 @@ class SLAMonitor:
         Returns:
             FreshnessReport with status and violations
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         violations = []
 
         if last_updated is None:
@@ -174,7 +174,7 @@ class SLAMonitor:
 
         metric = SLAMetric(
             metric_name="processing_latency",
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             value=duration_minutes,
             threshold=threshold,
             unit="minutes",
@@ -190,7 +190,7 @@ class SLAMonitor:
         Returns:
             Path to generated report
         """
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         report_path = self.output_dir / f"sla_report_{timestamp}.json"
 
         violations = [m for m in self.metrics if m.status == "violated"]
@@ -198,7 +198,7 @@ class SLAMonitor:
         compliant = [m for m in self.metrics if m.status == "compliant"]
 
         report = {
-            "report_timestamp": datetime.utcnow().isoformat(),
+            "report_timestamp": datetime.now(timezone.utc).isoformat(),
             "summary": {
                 "total_metrics": len(self.metrics),
                 "compliant": len(compliant),
@@ -225,7 +225,7 @@ class SLAMonitor:
         warnings = [m for m in self.metrics if m.status == "warning"]
 
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "total_checks": len(self.metrics),
             "status": "healthy" if not violations else "degraded",
             "violation_count": len(violations),

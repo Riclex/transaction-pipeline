@@ -29,7 +29,7 @@ def load_config(config_path: str = "pipeline_config.yaml") -> dict:
     validated_config = load_and_validate_config(config_path)
 
     # Return as dict for backward compatibility
-    return validated_config.dict()
+    return validated_config.model_dump()
 
 
 def load_config_validated(config_path: str = "pipeline_config.yaml") -> PipelineConfig:

@@ -10,7 +10,7 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -123,7 +123,7 @@ class TestSLAMonitor:
         monitor = SLAMonitor(config, tmp_path)
 
         # Data updated 1 hour ago
-        last_updated = datetime.utcnow() - timedelta(hours=1)
+        last_updated = datetime.now(timezone.utc) - timedelta(hours=1)
         report = monitor.check_data_freshness("test_table", last_updated)
 
         assert report.status == "fresh"
@@ -135,7 +135,7 @@ class TestSLAMonitor:
         monitor = SLAMonitor(config, tmp_path)
 
         # Data updated 48 hours ago
-        last_updated = datetime.utcnow() - timedelta(hours=48)
+        last_updated = datetime.now(timezone.utc) - timedelta(hours=48)
         report = monitor.check_data_freshness("test_table", last_updated)
 
         assert report.status == "stale"
@@ -146,8 +146,8 @@ class TestSLAMonitor:
         config = SLAConfig(max_processing_time_minutes=30)
         monitor = SLAMonitor(config, tmp_path)
 
-        start = datetime.utcnow() - timedelta(minutes=10)
-        end = datetime.utcnow()
+        start = datetime.now(timezone.utc) - timedelta(minutes=10)
+        end = datetime.now(timezone.utc)
 
         metric = monitor.check_processing_latency("test_process", start, end)
 
@@ -161,10 +161,10 @@ class TestSLAMonitor:
 
         # Add some metrics
         monitor.check_data_freshness(
-            "table1", datetime.utcnow() - timedelta(hours=1)
+            "table1", datetime.now(timezone.utc) - timedelta(hours=1)
         )
         monitor.check_data_freshness(
-            "table2", datetime.utcnow() - timedelta(hours=48)
+            "table2", datetime.now(timezone.utc) - timedelta(hours=48)
         )
 
         summary = monitor.get_sla_summary()
