@@ -96,6 +96,9 @@ class SLAMonitor:
             data_age_hours = None
             violations.append("No timestamp available for freshness check")
         else:
+            # Handle timezone-naive datetimes (e.g., from file mtimes)
+            if last_updated.tzinfo is None:
+                last_updated = last_updated.replace(tzinfo=timezone.utc)
             data_age_hours = (now - last_updated).total_seconds() / 3600
 
             if data_age_hours > self.config.max_data_age_hours:

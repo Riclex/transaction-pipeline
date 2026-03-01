@@ -122,8 +122,8 @@ def parse_dates(df: pd.DataFrame) -> pd.DataFrame:
     The function returns the *same* DataFrame (mutated) for convenience
     """
     # ``errors="coerce"`` converts unparsable strings into NaT
-    df["txn_date"] = pd.to_datetime(df["txn_date"], errors="coerce")
-    df["ingestion_date"] = pd.to_datetime(df["ingestion_date"], errors="coerce")
+    df["txn_date"] = pd.to_datetime(df["txn_date"], errors="coerce", format="%Y-%m-%d")
+    df["ingestion_date"] = pd.to_datetime(df["ingestion_date"], errors="coerce", format="%Y-%m-%d")
 
     # At this point both columns are ``datetime64[ns]``.  ``normalize`` forces
     # the time component to midnight (00:00) which is useful for the
