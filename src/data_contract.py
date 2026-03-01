@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Callable
 
 import pandas as pd
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 LOGGER = logging.getLogger(__name__)
 
@@ -53,10 +53,11 @@ class ColumnContract(BaseModel):
     regex_pattern: Optional[str] = None
     description: str = ""
 
-    @validator("max_value")
-    def max_greater_than_min(cls, v, values):
-        if v is not None and values.get("min_value") is not None:
-            if v < values["min_value"]:
+    @field_validator("max_value")
+    def max_greater_than_min(cls, v, info):
+        if v is not None:
+            min_value = info.data.get("min_value")
+            if min_value is not None and v < min_value:
                 raise ValueError("max_value must be greater than min_value")
         return v
 

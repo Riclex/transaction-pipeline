@@ -11,9 +11,10 @@ from __future__ import annotations
 import logging
 import os
 import re
+from datetime import date
 from pathlib import Path
 from typing import List, Optional, Union, Any
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 # Logging
 LOGGER = logging.getLogger(__name__)
@@ -172,15 +173,17 @@ class AlertThresholdsConfig(BaseModel):
     medium: int = Field(default=50, ge=0, le=100)
     high: int = Field(default=75, ge=0, le=100)
 
-    @validator('medium')
-    def medium_above_low(cls, v, values):
-        if 'low' in values and v < values['low']:
+    @field_validator('medium')
+    def medium_above_low(cls, v, info):
+        low = info.data.get('low')
+        if low is not None and v < low:
             raise ValueError('medium threshold must be >= low threshold')
         return v
 
-    @validator('high')
-    def high_above_medium(cls, v, values):
-        if 'medium' in values and v < values['medium']:
+    @field_validator('high')
+    def high_above_medium(cls, v, info):
+        medium = info.data.get('medium')
+        if medium is not None and v < medium:
             raise ValueError('high threshold must be >= medium threshold')
         return v
 
@@ -213,6 +216,68 @@ class AmlDetectionConfig(BaseModel):
 
 
 # -----------------------------------------------------------------------------
+# Airflow Configuration
+# -----------------------------------------------------------------------------
+
+class AirflowDefaultArgsConfig(BaseModel):
+    """Default arguments for Airflow tasks."""
+    retries: int = Field(default=2, ge=0)
+    retry_delay_minutes: int = Field(default=5, ge=0)
+    execution_timeout_minutes: int = Field(default=120, ge=1)
+    email_on_failure: bool = Field(default=True)
+    email_on_retry: bool = Field(default=False)
+
+
+class AirflowFileSensorConfig(BaseModel):
+    """Configuration for Airflow FileSensor."""
+    poke_interval: int = Field(default=60, ge=1)
+    timeout: int = Field(default=7200, ge=1)
+    mode: str = Field(default="poke", pattern="^(poke|reschedule)$")
+
+
+class AirflowQualityConfig(BaseModel):
+    """Quality thresholds for Airflow pipeline."""
+    max_rejection_rate: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class AirflowConfig(BaseModel):
+    """Apache Airflow orchestration configuration."""
+    enabled: bool = Field(
+        default=False,
+        description="Whether Airflow orchestration is enabled"
+    )
+    dag_id: str = Field(
+        default="bank_transaction_pipeline",
+        description="DAG identifier"
+    )
+    schedule_interval: str = Field(
+        default="0 6 * * *",
+        description="Cron expression for DAG schedule"
+    )
+    start_date: Union[str, date] = Field(
+        default="2024-01-01",
+        description="DAG start date (YYYY-MM-DD)"
+    )
+    catchup: bool = Field(
+        default=False,
+        description="Whether to run catchup on DAG start"
+    )
+    max_active_runs: int = Field(default=1, ge=1)
+    tags: List[str] = Field(
+        default_factory=lambda: ["etl", "banking", "transactions", "aml"]
+    )
+    default_args: AirflowDefaultArgsConfig = Field(
+        default_factory=AirflowDefaultArgsConfig
+    )
+    file_sensor: AirflowFileSensorConfig = Field(
+        default_factory=AirflowFileSensorConfig
+    )
+    quality: AirflowQualityConfig = Field(
+        default_factory=AirflowQualityConfig
+    )
+
+
+# -----------------------------------------------------------------------------
 # Data Trust Layer Configuration
 # -----------------------------------------------------------------------------
 
@@ -231,7 +296,7 @@ class AlertChannelConfig(BaseModel):
     file: bool = Field(default=False)
     file_path: Optional[str] = Field(default=None)
 
-    @validator('webhook_url', 'email_password', 'email_username', pre=True, always=True)
+    @field_validator('webhook_url', 'email_password', 'email_username', mode='before')
     def expand_env_vars(cls, v: Optional[str]) -> Optional[str]:
         """Expand environment variables in sensitive string fields.
 
@@ -314,8 +379,10 @@ class PipelineConfig(BaseModel):
     aggregation: AggregationConfig = Field(default_factory=AggregationConfig)
     aml_detection: AmlDetectionConfig = Field(default_factory=AmlDetectionConfig)
     trust_layer: TrustLayerConfig = Field(default_factory=TrustLayerConfig)
+    airflow: AirflowConfig = Field(default_factory=AirflowConfig)
+    airflow: AirflowConfig = Field(default_factory=AirflowConfig)
 
-    @validator('paths')
+    @field_validator('paths')
     def validate_paths(cls, v):
         """Validate that paths are properly formatted."""
         if isinstance(v, dict):
@@ -323,10 +390,7 @@ class PipelineConfig(BaseModel):
             return PathsConfig(**v)
         return v
 
-    class Config:
-        """Pydantic configuration."""
-        validate_assignment = True
-        extra = "allow"  # Allow extra fields for future extensibility
+    model_config = ConfigDict(validate_assignment=True, extra="allow")
 
 
 def validate_config(config_dict: dict) -> PipelineConfig:
