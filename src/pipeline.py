@@ -15,9 +15,12 @@ from typing import Optional
 
 import pandas as pd
 
-# Project‑root helper – guarantees the script works from 
+# Project‑root helper – guarantees the script works from
 # any working directory it is invoked
 BASE_DIR = Path(__file__).resolve().parent.parent  # repo root (pipeline.py lives in <root>/scripts or <root>)
+
+# Ensure src/ is on the path so imports work when running directly
+sys.path.insert(0, str(BASE_DIR))
 
 # File locations anchored ``BASE_DIR``
 RAW_PATH: Path = BASE_DIR / "data" / "raw" / "transactions_raw.csv"
@@ -508,7 +511,7 @@ def run_pipeline(config_path: str = "config/pipeline_config.yaml", resume: bool 
 
     # Calculate total pipeline duration
     pipeline_end_time = pd.Timestamp.now()
-    total_duration = (pipeline_end_time - pipeline_start).total_seconds()
+    total_duration = (pipeline_end_time - pipeline_start_time).total_seconds()
 
     LOGGER.info("Pipeline completed successfully in %.2f seconds ✔", total_duration)
 
