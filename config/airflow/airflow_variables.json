@@ -1,0 +1,75 @@
+# Airflow Variables Configuration
+# These variables can be loaded into Airflow for the pipeline
+#
+# Usage:
+#   airflow variables import config/airflow_variables.json
+
+{
+  "variables": [
+    {
+      "key": "pipeline_environment",
+      "value": "development",
+      "description": "Environment: development, staging, or production"
+    },
+    {
+      "key": "pipeline_log_level",
+      "value": "INFO",
+      "description": "Logging level: DEBUG, INFO, WARNING, ERROR"
+    },
+    {
+      "key": "trust_layer_enabled",
+      "value": "true",
+      "description": "Enable data trust layer (lineage, SLA, drift detection)"
+    },
+    {
+      "key": "lineage_tracking_enabled",
+      "value": "true",
+      "description": "Enable data lineage tracking"
+    },
+    {
+      "key": "sla_monitoring_enabled",
+      "value": "true",
+      "description": "Enable SLA monitoring"
+    },
+    {
+      "key": "drift_detection_enabled",
+      "value": "true",
+      "description": "Enable schema drift detection"
+    },
+    {
+      "key": "alerting_enabled",
+      "value": "true",
+      "description": "Enable alerting"
+    },
+    {
+      "key": "aml_detection_enabled",
+      "value": "true",
+      "description": "Enable AML detection in pipeline"
+    },
+    {
+      "key": "email_alert_recipients",
+      "value": "data-team@example.com",
+      "description": "Comma-separated list of email recipients for alerts"
+    },
+    {
+      "key": "max_rejection_rate",
+      "value": "0.5",
+      "description": "Maximum acceptable rejection rate (0.5 = 50%)"
+    },
+    {
+      "key": "dag_schedule_interval",
+      "value": "0 6 * * *",
+      "description": "Cron expression for DAG schedule"
+    },
+    {
+      "key": "dag_max_retries",
+      "value": "2",
+      "description": "Maximum number of retries per task"
+    },
+    {
+      "key": "dag_retry_delay_minutes",
+      "value": "5",
+      "description": "Delay between retries in minutes"
+    }
+  ]
+}

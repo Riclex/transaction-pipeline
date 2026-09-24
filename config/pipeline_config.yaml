@@ -4,6 +4,38 @@ pipeline:
   name: bank_transaction_pipeline
   environment: local
 
+# Apache Airflow Configuration
+airflow:
+  enabled: false  # Set to true when running under Airflow
+  dag_id: bank_transaction_pipeline
+  schedule_interval: "0 6 * * *"  # Daily at 6 AM UTC
+  start_date: 2024-01-01
+  catchup: false
+  max_active_runs: 1
+  tags:
+    - etl
+    - banking
+    - transactions
+    - aml
+
+  # Task retry configuration
+  default_args:
+    retries: 2
+    retry_delay_minutes: 5
+    execution_timeout_minutes: 120
+    email_on_failure: true
+    email_on_retry: false
+
+  # File sensor configuration
+  file_sensor:
+    poke_interval: 60  # seconds
+    timeout: 7200  # 2 hours
+    mode: poke
+
+  # Data quality thresholds
+  quality:
+    max_rejection_rate: 0.5  # Fail if >50% rejected
+
 paths:
   raw_transactions: data/raw/transactions_raw.csv
   ledger_output: data/processed/ledger_transactions.parquet
@@ -95,3 +127,94 @@ aml_detection:
     low: 25
     medium: 50
     high: 75
+
+# Data Trust Layer Configuration
+trust_layer:
+  enabled: true
+
+  # Data lineage tracking
+  lineage_dir: data/lineage
+
+  # SLA monitoring
+  sla_check_freshness: true
+  sla_max_data_age_hours: 24
+  sla_max_processing_time_minutes: 60
+
+  # Schema drift detection
+  drift_detection_dir: data/schema_baselines
+  drift_track_additions: true
+  drift_track_removals: true
+  drift_track_type_changes: true
+  drift_critical_columns:
+    - account_id
+    - amount
+    - txn_date
+
+  # Data contracts
+  contracts_dir: data/contracts
+
+  # Alerting configuration
+  alerting:
+    console: true
+    webhook: false
+    email: false
+    file: true
+    webhook_url: "${WEBHOOK_URL}"
+    email_smtp_host: "${EMAIL_SMTP_HOST}"
+    email_smtp_port: 587
+    email_username: "${EMAIL_USERNAME}"
+    email_password: "${EMAIL_PASSWORD}"
+    email_from: "${EMAIL_FROM}"
+    email_to: "${EMAIL_TO}"
+    file_path: data/alerts/alerts.log
+
+  # Alert throttling
+  alert_throttle_minutes: 60
+
+# Data Trust Layer Configuration
+trust_layer:
+  enabled: true
+
+  # Data Lineage Tracking
+  lineage_dir: data/lineage
+
+  # SLA Monitoring
+  sla_max_data_age_hours: 24
+  sla_max_processing_time_minutes: 60
+  sla_check_freshness: true
+
+  # Schema Drift Detection
+  drift_detection_dir: data/schema_baselines
+  drift_track_additions: true
+  drift_track_removals: true
+  drift_track_type_changes: true
+  drift_critical_columns:
+    - txn_id
+    - account_id
+    - amount
+    - txn_date
+
+  # Data Contracts
+  contracts_dir: data/contracts
+
+  # Alerting Configuration
+  alerting:
+    console: true
+    email: false
+    webhook: false
+    file: true
+    file_path: data/alerts/alerts.json
+
+  # Email settings (use environment variables for credentials)
+  email_smtp_host: "${EMAIL_SMTP_HOST:-smtp.gmail.com}"
+  email_smtp_port: "${EMAIL_SMTP_PORT:-587}"
+  email_username: "${EMAIL_USERNAME:-}"
+  email_password: "${EMAIL_PASSWORD:-}"
+  email_from: "${EMAIL_FROM:-alerts@example.com}"
+  email_to: "${EMAIL_TO:-data-team@example.com}"
+
+  # Webhook settings
+  webhook_url: "${WEBHOOK_URL:-}"
+
+  # Alert throttling (minutes between same-type alerts)
+  alert_throttle_minutes: 15

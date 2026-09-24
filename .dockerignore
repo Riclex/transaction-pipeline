@@ -1,0 +1,97 @@
+# Docker ignore file for Airflow deployment
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Data files (these are mounted as volumes)
+data/processed/*
+data/intermediate/*
+data/checkpoints/*
+data/lineage/*
+data/sla/*
+data/schema_baselines/*
+data/alerts/*
+
+# Keep directory structure
+!data/processed/.gitkeep
+!data/intermediate/.gitkeep
+!data/checkpoints/.gitkeep
+!data/lineage/.gitkeep
+!data/sla/.gitkeep
+!data/schema_baselines/.gitkeep
+!data/alerts/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# Tests
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation
+*.md
+!README*.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Airflow
+airflow.db
+airflow.cfg
+unittests.cfg
+webserver_config.py
+
+# Secrets
+.env
+.env.airflow
+*.key
+*.pem
+
+# Node (if any frontend)
+node_modules/
+
+# Project specific
+Project_Notes.txt
+interview.txt
+.claude/
+nul

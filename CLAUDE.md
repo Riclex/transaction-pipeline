@@ -49,9 +49,49 @@ python src/aml_detector.py --config config/pipeline_config.yaml
 python src/aml_detector.py --ledger data/processed/ledger_transactions.parquet
 ```
 
+### Run with Apache Airflow
+```bash
+# Start Airflow services
+docker-compose up -d
+
+# Access UI at http://localhost:8080 (admin/admin)
+
+# Trigger DAG manually
+docker-compose exec airflow-webserver airflow dags trigger bank_transaction_pipeline
+
+# Check DAG status
+docker-compose exec airflow-webserver airflow dags list-runs -d bank_transaction_pipeline
+
+# View task logs
+docker-compose logs -f airflow-scheduler
+
+# Stop Airflow
+docker-compose down
+```
+
 ### Install Dependencies
 ```bash
 pip install -r requirements.txt
+```
+
+### Run with Apache Airflow
+```bash
+# Start Airflow services
+docker-compose up -d
+
+# Access UI at http://localhost:8080 (admin/admin)
+
+# Trigger DAG manually
+docker-compose exec airflow-webserver airflow dags trigger bank_transaction_pipeline
+
+# Check DAG status
+docker-compose exec airflow-webserver airflow dags list-runs -d bank_transaction_pipeline
+
+# View logs
+docker-compose logs -f airflow-scheduler
+
+# Stop Airflow
+docker-compose down
 ```
 
 ## Architecture
@@ -59,6 +99,62 @@ pip install -r requirements.txt
 ### High-Level Pipeline Flow
 ```
 Raw CSV → Extract & Validate → Transform → Quality Check → Reconcile → Load → Daily Aggregation
+```
+
+### Apache Airflow Orchestration (Production Deployment)
+
+The pipeline can run under Apache Airflow for production-grade orchestration:
+
+```
+FileSensor(wait_for_raw_file)
+    ↓
+extract_task → XCom: raw_path, row_count
+    ↓
+transform_task → XCom: transformed_path, ledger_path
+    ↓
+[quality_check_task + reconcile_task] (parallel in TaskGroup)
+    ↓
+branch_on_reconcile (BranchPythonOperator)
+    ├─ success → load_task → daily_aggregation_task → aml_detection_task
+    └─ failure → alert_reconcile_failure_task
+    ↓
+cleanup_intermediate_task (trigger_rule='all_done')
+```
+
+**Airflow DAG Features:**
+- **FileSensor**: Waits for raw file with configurable timeout (2 hours default)
+- **TaskGroup**: Parallel validation (quality + reconcile) for efficiency
+- **BranchPythonOperator**: Conditional routing based on reconciliation result
+- **XCom**: Inter-task communication for file paths and metadata
+- **Parquet intermediates**: DataFrames passed via `data/intermediate/` directory
+- **Always cleanup**: Cleanup task runs regardless of success/failure
+- **Retry logic**: Configurable retries with exponential backoff
+- **SLA monitoring**: Built-in SLA tracking and alerting
+
+**Airflow Task Entry Points:** `src/airflow_tasks.py`
+- `extract_task()` - Extract from CSV, save to intermediate Parquet
+- `transform_task()` - Normalize status/amounts, flag late arrivals
+- `quality_check_task()` - Generate quality metrics and rejection report
+- `reconcile_task()` - Compare raw vs ledger totals
+- `branch_on_reconcile()` - Route to load or alert based on reconciliation
+- `load_task()` - Persist ledger to Parquet
+- `daily_aggregation_task()` - Generate daily account balances
+- `aml_detection_task()` - Run AML detection (optional)
+- `cleanup_intermediate_task()` - Delete temporary files
+
+**Airflow Configuration:** `config/pipeline_config.yaml`
+```yaml
+airflow:
+  enabled: false  # Set to true when running under Airflow
+  dag_id: bank_transaction_pipeline
+  schedule_interval: "0 6 * * *"  # Daily at 6 AM UTC
+  start_date: 2024-01-01
+  catchup: false
+  max_active_runs: 1
+  default_args:
+    retries: 2
+    retry_delay_minutes: 5
+    execution_timeout_minutes: 120
 ```
 
 ### AML Detection Module (Post-Processing)
@@ -125,6 +221,30 @@ Ledger Parquet → Load → Feature Engineering → Rule Evaluation → Alert Ge
 - Full checkpoint/resume implementation with `_load_resume_state()` and `is_step_completed()` checks
 - Auto-cleanup on successful completion
 
+**`src/airflow_tasks.py`** - Airflow task entry points
+- `extract_task()`: Extract from CSV, save to intermediate Parquet, push XCom metadata
+- `transform_task()`: Normalize status/amounts, flag late arrivals, write intermediates
+- `quality_check_task()`: Generate quality metrics, export JSON/CSV reports
+- `reconcile_task()`: Compare raw vs ledger totals, return success/failure status
+- `branch_on_reconcile()`: BranchPythonOperator logic for conditional routing
+- `load_task()`: Persist ledger to Parquet with atomic write pattern
+- `daily_aggregation_task()`: Generate daily account balances
+- `aml_detection_task()`: Run AML detection on ledger output
+- `cleanup_intermediate_task()`: Delete temporary files (trigger_rule='all_done')
+- All tasks use XCom for metadata (paths, counts) and Parquet files for DataFrames
+
+**`dags/transaction_pipeline_dag.py`** - Airflow DAG definition
+- DAG with 11 tasks: FileSensor, PythonOperators, BranchPythonOperator, TaskGroup
+- Schedule: Daily at 6 AM UTC (configurable)
+- Parallel validation tasks (quality_check + reconcile in TaskGroup)
+- Branching logic based on reconciliation result
+- Always-cleanup pattern for resource management
+
+**`plugins/operators/custom_operators.py`** - Custom Airflow operators
+- `DataFrameToPostgresOperator`: Load Parquet files to PostgreSQL tables
+- `LineageExportOperator`: Export data lineage graphs
+- `SLACheckOperator`: Monitor SLA compliance and alert on violations
+
 **`src/config_schema.py`** - Configuration validation
 - Pydantic models (`PipelineConfig`, `BusinessRulesConfig`, etc.)
 - Validates `config/pipeline_config.yaml` at runtime
@@ -142,6 +262,31 @@ Ledger Parquet → Load → Feature Engineering → Rule Evaluation → Alert Ge
 - `rules.py`: `AmlRuleEngine` class evaluates rules and calculates risk scores (0-100)
 - `alerts.py`: `AlertManager` generates deduplicated alerts with severity levels
 - `aml_detector.py`: Standalone CLI entry point for running AML detection
+
+**`src/airflow_tasks.py`** - Airflow task entry points
+- `extract_task()`: Extract from CSV, save to intermediate Parquet, push XCom
+- `transform_task()`: Normalize data, read/write intermediates, XCom metadata
+- `quality_check_task()`: Generate quality metrics and rejection report
+- `reconcile_task()`: Validate data integrity, return reconciliation status
+- `branch_on_reconcile()`: Branching logic for success/failure paths
+- `load_task()`: Persist ledger to Parquet output
+- `daily_aggregation_task()`: Generate daily account balances
+- `aml_detection_task()`: Run AML detection (conditional on config)
+- `cleanup_intermediate_task()`: Delete temporary files (always runs)
+- `alert_reconcile_failure_task()`: Send alerts on reconciliation failure
+
+**`dags/transaction_pipeline_dag.py`** - Airflow DAG definition
+- 11 tasks with dependencies: FileSensor → extract → transform → validation (parallel) → branch → load → aggregation → AML → cleanup
+- Uses TaskGroup for parallel validation tasks
+- BranchPythonOperator for conditional routing
+- Trigger rules: `all_done` for cleanup, `all_done` for AML
+
+**`docker-compose.yaml`** - Airflow infrastructure
+- PostgreSQL metadata database
+- Airflow Webserver (port 8080)
+- Airflow Scheduler
+- Airflow Triggerer
+- Volume mounts for dags/, src/, config/, data/
 
 ### Key Design Principles
 
@@ -269,7 +414,7 @@ aml_detection:
 
 ### Testing Strategy
 
-**Test Coverage: 71 tests across 6 test files**
+**Test Coverage: 93+ tests across 8 test files**
 
 - **Unit tests**: `tests/test_extract.py` (5 tests - schema validation, duplicates, edge cases, empty DataFrames)
 - **Integration tests**: `tests/test_pipeline_logic.py` (33 tests - full E2E pipeline, transformation logic, reconciliation, load validation, parametrized status tests with 14 cases)
@@ -278,12 +423,19 @@ aml_detection:
   - `test_aml_rules.py`: 9 tests - rule evaluation, risk scoring, severity mapping
   - `test_aml_alerts.py`: 7 tests - alert generation, deduplication, save/load
   - `test_aml_integration.py`: 4 tests - full AML pipeline E2E, metrics computation
+- **Airflow tests**: `tests/test_airflow_tasks.py`, `tests/test_dag_definition.py`
+  - Task function unit tests with mocked TaskInstance
+  - XCom data passing validation
+  - DAG structure tests (task count, dependencies, properties)
+  - Branching logic validation
+  - Custom operator tests
 - **Testing patterns**:
   - Uses `tmp_path` fixture for isolated file operations
   - Parametrized tests for status normalization covering various input formats
   - Full type hints with `-> None` return types on all test functions
   - Variable annotations (`pd.DataFrame`, `pd.Series`, `Path`) throughout
   - Edge case coverage: empty DataFrames, null values, duplicates, numpy boolean comparisons
+  - Airflow fallback imports for local development without Airflow installed
 
 ### Module Import Pattern
 

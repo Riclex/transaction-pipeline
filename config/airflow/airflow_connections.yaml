@@ -1,0 +1,56 @@
+# Airflow Connections Configuration
+# This file defines Airflow connections that can be imported
+#
+# Usage:
+#   airflow connections import config/airflow_connections.yaml
+#
+# Or set via environment variables in .env.airflow
+
+connections:
+  # File System Connection (required)
+  - connection_id: fs_default
+    connection_type: fs
+    description: "Default file system connection for pipeline data files"
+    extra:
+      path: /opt/airflow/data
+
+  # PostgreSQL Connection (required)
+  - connection_id: postgres_default
+    connection_type: postgres
+    host: postgres
+    port: 5432
+    schema: airflow
+    login: airflow
+    password: airflow
+
+  # SMTP Connection (optional - for email alerts)
+  - connection_id: smtp_default
+    connection_type: smtp
+    host: "${AIRFLOW_ALERT_EMAIL_SMTP_HOST}"
+    port: "${AIRFLOW_ALERT_EMAIL_SMTP_PORT:-587}"
+    login: "${AIRFLOW_ALERT_EMAIL_USERNAME}"
+    password: "${AIRFLOW_ALERT_EMAIL_PASSWORD}"
+
+  # HTTP/Webhook Connection (optional - for Slack/Teams alerts)
+  - connection_id: webhook_default
+    connection_type: http
+    host: "${AIRFLOW_ALERT_WEBHOOK_URL}"
+    port: 443
+    schema: https
+
+  # SSH Connection (optional - for remote file access)
+  - connection_id: ssh_remote
+    connection_type: ssh
+    host: "${SSH_REMOTE_HOST}"
+    port: "${SSH_REMOTE_PORT:-22}"
+    login: "${SSH_REMOTE_USER}"
+    extra:
+      key_file: /opt/airflow/.ssh/id_rsa
+
+  # AWS S3 Connection (optional - for cloud storage)
+  - connection_id: aws_s3_default
+    connection_type: aws
+    extra:
+      aws_access_key_id: "${AWS_ACCESS_KEY_ID}"
+      aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+      region_name: "${AWS_REGION:-us-east-1}"

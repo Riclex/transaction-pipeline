@@ -1,0 +1,62 @@
+# Apache Airflow Docker Image for Bank Transaction Pipeline
+# Extends the official Airflow image with project-specific dependencies
+
+FROM apache/airflow:2.8.1-python3.11
+
+USER root
+
+# Install system dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        git \
+        libpq-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create necessary directories with correct permissions
+RUN mkdir -p /opt/airflow/data/raw \
+    /opt/airflow/data/processed \
+    /opt/airflow/data/intermediate \
+    /opt/airflow/data/checkpoints \
+    /opt/airflow/data/lineage \
+    /opt/airflow/data/sla \
+    /opt/airflow/data/schema_baselines \
+    /opt/airflow/config \
+    /opt/airflow/dags \
+    /opt/airflow/plugins \
+    /opt/airflow/logs \
+    && chown -R airflow: /opt/airflow
+
+# Switch to airflow user
+USER airflow
+
+# Install core Python dependencies (excluding dev/llm packages that conflict)
+COPY --chown=airflow:airflow requirements.txt /tmp/requirements.txt
+COPY --chown=airflow:airflow airflow-requirements.txt /tmp/airflow-requirements.txt
+
+# Install only essential packages for the pipeline
+# Use flexible versions that work with Python 3.11
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir \
+        pandas \
+        numpy \
+        pydantic \
+        pyyaml \
+        pyarrow \
+        python-dateutil \
+    && pip install --no-cache-dir -r /tmp/airflow-requirements.txt
+
+# Set working directory
+WORKDIR /opt/airflow
+
+# Expose ports
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl --fail http://localhost:8080/health || exit 1
+
+# Default command (can be overridden in docker-compose)
+CMD ["webserver"]

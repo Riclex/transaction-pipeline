@@ -1,0 +1,12 @@
+# Apache Airflow Additional Requirements
+# These are installed on top of the base Airflow image
+
+# Airflow PostgreSQL backend
+apache-airflow-providers-postgres
+
+# Airflow HTTP provider for webhooks
+apache-airflow-providers-http
+
+# Additional utilities
+psycopg2-binary
+croniter

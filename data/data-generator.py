@@ -3,7 +3,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import random
 
-def generate_synthetic_transactions(num_records=10000, start_date="2025-01-01", end_date="2025-12-31"):
+def generate_synthetic_transactions(num_records=100000, start_date="2025-01-01", end_date="2025-12-31"):
     """
     Generate synthetic transaction data
     """
@@ -22,7 +22,7 @@ def generate_synthetic_transactions(num_records=10000, start_date="2025-01-01", 
     statuses = ['COMPLETED', 'SETTLED', 'PENDING', 'FAILED', 'CANCELLED', 'OK']
     
     # Generate account IDs (more realistic distribution)
-    num_accounts = max(1000, num_records // 20)  # Adjust based on number of records
+    num_accounts = max(1500, num_records // 20)  # Adjust based on number of records
     account_ids = [f'acc_{str(i).zfill(3)}' for i in range(1, num_accounts + 1)]
     
     # Generate transaction IDs
@@ -101,8 +101,8 @@ def save_to_csv(df, filename='synthetic_transactions.csv'):
 
 # Generate and save data
 if __name__ == "__main__":
-    # Generate 10000 transactions
-    df = generate_synthetic_transactions(num_records=10000)
+    # Generate 100000 transactions
+    df = generate_synthetic_transactions(num_records=100000)
     
     # Save to CSV
     save_to_csv(df, 'transactions_raw.csv')
