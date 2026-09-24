@@ -1,0 +1,17 @@
+# Environment / secrets — never commit
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# --- Generated data outputs & caches (regenerable) ---
+data/raw/
+data/intermediate/
+data/processed/
+data/lineage/
+data/sla/
+data/schema_baselines/
+logs/
+__pycache__/
+*.pyc
+nul
